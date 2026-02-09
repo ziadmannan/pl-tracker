@@ -59,8 +59,6 @@
         .game-card.draw { background-color: var(--draw-bg) !important; color: white; border: none; }
 
         .comp-badge { font-size: 0.55rem; padding: 2px 5px; border-radius: 4px; color: white; font-weight: 900; }
-        .next-game-highlight { animation: pulse-glow 2s infinite; border: 2.5px solid var(--next-glow) !important; }
-        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 5px var(--next-glow); } 50% { box-shadow: 0 0 15px var(--next-glow); } }
 
         /* MODALS */
         .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
@@ -124,14 +122,22 @@
         document.getElementById('loading').style.display = 'block';
 
         try {
-            const h = { 'X-Auth-Token': API_KEY };
-            // Fetch standings and matches
+            // We use PROXY prefix + URL
+            // We DON'T send headers during the call to avoid the preflight OPTIONS check if the proxy is sensitive
+            const urlS = `${PROXY}${encodeURIComponent('https://api.football-data.org/v4/competitions/PL/standings')}`;
+            const urlM = `${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/teams/${currentTeamId}/matches`)}`;
+
+            const fetchOptions = {
+                method: 'GET',
+                headers: { 'X-Auth-Token': API_KEY }
+            };
+
             const [sRes, mRes] = await Promise.all([
-                fetch(`${PROXY}${encodeURIComponent('https://api.football-data.org/v4/competitions/PL/standings')}`, { headers: h }),
-                fetch(`${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/teams/${currentTeamId}/matches`)}`, { headers: h })
+                fetch(urlS, fetchOptions),
+                fetch(urlM, fetchOptions)
             ]);
 
-            if (!sRes.ok || !mRes.ok) throw new Error('API Error');
+            if (!sRes.ok || !mRes.ok) throw new Error('CORS or API Rate Limit');
 
             standings = (await sRes.json()).standings[0].table;
             allMatches = (await mRes.json()).matches;
@@ -140,7 +146,7 @@
             updateUI();
         } catch (e) {
             console.error(e);
-            alert("Data sync failed. Check API limit (10/min).");
+            alert("Data sync failed. Ensure your browser isn't blocking the proxy.");
         }
         document.getElementById('loading').style.display = 'none';
     }
@@ -160,10 +166,10 @@
         document.getElementById('ppg').innerText = ppg.toFixed(2);
         document.getElementById('proj').innerText = Math.round(ppg * 38);
 
-        // Form Dots Strip
         const formFilter = showPLOnly ? allMatches.filter(m => m.competition.code === 'PL') : allMatches;
         const form = formFilter.filter(m => m.status === 'FINISHED')
             .sort((a,b) => new Date(a.utcDate) - new Date(b.utcDate))
+            .slice(-5)
             .map(m => {
                 const isH = m.homeTeam.id == currentTeamId;
                 const hS = m.score.fullTime.home, aS = m.score.fullTime.away;
@@ -189,7 +195,6 @@
                 const isH = m.homeTeam.id == currentTeamId; const opp = isH ? m.awayTeam : m.homeTeam;
                 const matchDate = new Date(m.utcDate);
                 let displayDate = matchDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-                if (currentView !== 'small') displayDate = `${matchDate.toLocaleDateString('en-GB', { weekday: 'short' })} ${displayDate}`;
                 const resClass = m.status === 'FINISHED' ? (m.score.fullTime.home === m.score.fullTime.away ? 'draw' : ((isH && m.score.fullTime.home > m.score.fullTime.away) || (!isH && m.score.fullTime.away > m.score.fullTime.home) ? 'win' : 'loss')) : '';
                 const meta = COMP_META[m.competition.code] || { color: '#666', label: m.competition.code };
                 return `<div class="game-card ${resClass}" onclick="showDetails(${m.id})"><div class="venue-tag">${isH ? 'H' : 'A'}</div><div class="date-row">${displayDate}</div><div class="opponent">${currentView === 'small' ? opp.tla : opp.shortName}</div><div class="score">${m.status === 'FINISHED' ? `${m.score.fullTime.home}-${m.score.fullTime.away}` : 'vs'} ${currentView === 'small' ? (m.competition.code !== 'PL' ? '★' : '') : `<span class="comp-badge" style="background:${meta.color}">${meta.label}</span>`}</div></div>`;
@@ -201,7 +206,8 @@
     async function showDetails(id) {
         document.getElementById('loading').style.display = 'block';
         try {
-            const res = await fetch(`${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/matches/${id}`)}`, { headers: { 'X-Auth-Token': API_KEY } });
+            const url = `${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/matches/${id}`)}`;
+            const res = await fetch(url, { headers: { 'X-Auth-Token': API_KEY } });
             const m = await res.json();
             document.getElementById('det-comp').innerText = m.competition.name;
             document.getElementById('det-teams').innerText = `${m.homeTeam.shortName} vs ${m.awayTeam.shortName}`;
