@@ -63,10 +63,12 @@
 
         /* MODALS */
         .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-        .modal { background: var(--card-bg); color: var(--text); width: 90%; max-width: 360px; border-radius: 12px; padding: 20px; max-height: 80vh; overflow-y: auto; }
-        .table-view { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-        .table-view th { text-align: left; padding: 8px 4px; border-bottom: 2px solid var(--border); color: var(--sub-text); font-size: 0.65rem; text-transform: uppercase; }
-        .table-view td { padding: 10px 4px; border-bottom: 1px solid var(--border); }
+        .modal { background: var(--card-bg); color: var(--text); width: 95%; max-width: 400px; border-radius: 12px; padding: 15px; max-height: 85vh; overflow-y: auto; }
+        .table-view { width: 100%; border-collapse: collapse; font-size: 0.75rem; table-layout: fixed; }
+        .table-view th { text-align: center; padding: 8px 2px; border-bottom: 2px solid var(--border); color: var(--sub-text); font-size: 0.6rem; text-transform: uppercase; }
+        .table-view th:nth-child(2) { text-align: left; width: 25%; }
+        .table-view td { padding: 8px 2px; border-bottom: 1px solid var(--border); text-align: center; }
+        .table-view td:nth-child(2) { text-align: left; font-weight: 700; }
         .row-highlight { background: rgba(219, 0, 7, 0.1); font-weight: 800; }
 
         #last-updated { font-size: 0.65rem; color: var(--sub-text); text-align: center; margin-top: 15px; opacity: 0.8; }
@@ -101,7 +103,7 @@
     </div>
 </div>
 
-<div id="table-overlay" class="overlay" onclick="closeModals()"><div class="modal" onclick="event.stopPropagation()"><h3 style="margin:0 0 15px 0;">League Table</h3><table class="table-view"><thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead><tbody id="table-body"></tbody></table><button style="width:100%; padding:14px; background:var(--arsenal-red); color:white; border:none; border-radius:6px; font-weight:800; margin-top:20px;" onclick="closeModals()">CLOSE</button></div></div>
+<div id="table-overlay" class="overlay" onclick="closeModals()"><div class="modal" onclick="event.stopPropagation()"><h3 style="margin:0 0 15px 0;">League Table</h3><table class="table-view"><thead><tr><th style="width:10%">#</th><th>Team</th><th style="width:10%">P</th><th style="width:8%">W</th><th style="width:8%">D</th><th style="width:8%">L</th><th style="width:12%">GD</th><th style="width:12%">Pts</th></tr></thead><tbody id="table-body"></tbody></table><button style="width:100%; padding:14px; background:var(--arsenal-red); color:white; border:none; border-radius:6px; font-weight:800; margin-top:20px;" onclick="closeModals()">CLOSE</button></div></div>
 
 <div id="settings-overlay" class="overlay" onclick="closeModals()"><div class="modal" onclick="event.stopPropagation()"><h3>Settings</h3><select id="team-select" style="width:100%; padding:14px; margin-bottom:15px;" onchange="changeTeam(this.value)"><option value="57">Arsenal</option><option value="65">Man City</option><option value="64">Liverpool</option><option value="73">Spurs</option><option value="61">Chelsea</option><option value="66">Man Utd</option></select><button id="theme-toggle" onclick="toggleDarkMode()" style="width:100%; padding:12px; margin-bottom:15px;">🌙 DARK MODE</button><div style="display:flex; gap:8px; margin-bottom:20px;"><button onclick="setView('small')" style="flex:1; padding:12px;">S</button><button onclick="setView('medium')" style="flex:1; padding:12px;">M</button><button onclick="setView('large')" style="flex:1; padding:12px;">L</button></div><button style="width:100%; padding:14px; background:var(--arsenal-red); color:white; border:none; border-radius:6px;" onclick="closeModals()">APPLY</button><div id="last-updated">Last Sync: Never</div></div></div>
 
@@ -113,10 +115,8 @@
 
     const COMP_META = { 'PL': { color: 'var(--color-pl)', label: 'PL' }, 'UCL': { color: 'var(--color-cl)', label: 'UCL' }, 'FAC': { color: 'var(--color-fac)', label: 'FAC' }, 'FLC': { color: 'var(--color-elc)', label: 'FLC' } };
 
-    // HELPER: Fetches through Puter.js tunnel to bypass CORS preflight failures
     async function fetchAPI(url) {
         try {
-            // puter.net.fetch is CORS-free by design
             const response = await puter.net.fetch(url, {
                 method: 'GET',
                 headers: { 'X-Auth-Token': API_KEY }
@@ -172,7 +172,6 @@
         const formFilter = showPLOnly ? allMatches.filter(m => m.competition.code === 'PL') : allMatches;
         const form = formFilter.filter(m => m.status === 'FINISHED')
             .sort((a,b) => new Date(a.utcDate) - new Date(b.utcDate))
-            .slice(-5)
             .map(m => {
                 const isH = m.homeTeam.id == currentTeamId;
                 const hS = m.score.fullTime.home, aS = m.score.fullTime.away;
@@ -180,7 +179,17 @@
             });
         document.getElementById('form-strip').innerHTML = form.map(r => `<div class="dot ${r}"></div>`).join('');
 
-        document.getElementById('table-body').innerHTML = standings.map(row => `<tr class="${row.team.id == currentTeamId ? 'row-highlight' : ''}"><td>${row.position}</td><td>${row.team.shortName}</td><td>${row.playedGames}</td><td>${row.goalDifference > 0 ? '+' : ''}${row.goalDifference}</td><td>${row.points}</td></tr>`).join('');
+        document.getElementById('table-body').innerHTML = standings.map(row =>
+            `<tr class="${row.team.id == currentTeamId ? 'row-highlight' : ''}">
+                    <td>${row.position}</td>
+                    <td>${row.team.tla}</td>
+                    <td>${row.playedGames}</td>
+                    <td>${row.won}</td>
+                    <td>${row.draw}</td>
+                    <td>${row.lost}</td>
+                    <td>${row.goalDifference > 0 ? '+' : ''}${row.goalDifference}</td>
+                    <td>${row.points}</td>
+                </tr>`).join('');
         renderMatches(showPLOnly ? allMatches.filter(m => m.competition.code === 'PL') : allMatches);
     }
 
