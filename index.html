@@ -9,6 +9,7 @@
     <link rel="apple-touch-icon" href="https://img.icons8.com/ios-filled/512/football.png">
     <meta name="theme-color" content="#DB0007">
     <title>PL Tracker Pro</title>
+    <script src="https://js.puter.com/v2/"></script>
     <style>
         :root {
             --arsenal-red: #DB0007; --arsenal-blue: #061041;
@@ -112,15 +113,19 @@
 
     const COMP_META = { 'PL': { color: 'var(--color-pl)', label: 'PL' }, 'UCL': { color: 'var(--color-cl)', label: 'UCL' }, 'FAC': { color: 'var(--color-fac)', label: 'FAC' }, 'FLC': { color: 'var(--color-elc)', label: 'FLC' } };
 
-    // HELPER: Fetches through AllOrigins and parses the result
-    async function fetchAPI(targetUrl) {
-        // We embed the header in the URL string itself so AllOrigins handles it on the server-side
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&headers=${encodeURIComponent(JSON.stringify({'X-Auth-Token': API_KEY}))}`;
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error('Proxy error');
-        const data = await response.json();
-        // AllOrigins returns the stringified response in data.contents
-        return JSON.parse(data.contents);
+    // HELPER: Fetches through Puter.js tunnel to bypass CORS preflight failures
+    async function fetchAPI(url) {
+        try {
+            // puter.net.fetch is CORS-free by design
+            const response = await puter.net.fetch(url, {
+                method: 'GET',
+                headers: { 'X-Auth-Token': API_KEY }
+            });
+            return await response.json();
+        } catch (err) {
+            console.error("Fetch Error:", err);
+            throw err;
+        }
     }
 
     async function init() {
@@ -144,7 +149,7 @@
             updateUI();
         } catch (e) {
             console.error(e);
-            alert("Data sync failed. Check if API limit (10/min) was reached.");
+            alert("Data sync failed. If it's a 429 error, wait 1 minute for the API limit.");
         }
         document.getElementById('loading').style.display = 'none';
     }
@@ -225,11 +230,6 @@
     function setView(v) { currentView = v; document.body.className = 'view-'+v; saveConfig(); updateUI(); }
     function setFilter(pl) { showPLOnly = pl; document.getElementById('btn-pl').classList.toggle('active', pl); document.getElementById('btn-all').classList.toggle('active', !pl); updateUI(); }
 
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js').catch(err => console.log('SW Error', err));
-        });
-    }
     init();
 </script>
 </body>
