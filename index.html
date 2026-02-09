@@ -108,28 +108,46 @@
 
     <script>
         const API_KEY = '5f78ec510e644ba2b8972b8c5f3ebd46';
-        const PROXY = "https://corsproxy.io/?";
+        // Old: const PROXY = "https://corsproxy.io/?";
+        const PROXY = "https://api.allorigins.win/raw?url=";
         let currentTeamId = 57, allMatches = [], standings = null, showPLOnly = true, currentView = 'small', darkMode = false;
 
         const COMP_META = { 'PL': { color: 'var(--color-pl)', label: 'PL' }, 'UCL': { color: 'var(--color-cl)', label: 'UCL' }, 'FAC': { color: 'var(--color-fac)', label: 'FAC' }, 'FLC': { color: 'var(--color-elc)', label: 'FLC' } };
 
         async function init() {
             const saved = JSON.parse(localStorage.getItem('pl_config') || '{"team":57, "view":"small", "dark":false}');
-            currentTeamId = saved.team; currentView = saved.view; darkMode = saved.dark;
+            currentTeamId = saved.team; 
+            currentView = saved.view; 
+            darkMode = saved.dark;
+    
             document.body.className = 'view-' + currentView;
             document.body.setAttribute('data-theme', darkMode ? 'dark' : 'light');
             document.getElementById('team-select').value = currentTeamId;
+
             document.getElementById('loading').style.display = 'block';
+    
             try {
                 const h = { 'X-Auth-Token': API_KEY };
+        
+                // Construct the URLs
+                const standingsUrl = `https://api.football-data.org/v4/competitions/PL/standings`;
+                const matchesUrl = `https://api.football-data.org/v4/teams/${currentTeamId}/matches`;
+        
+                // Fetch using the new proxy format
                 const [sRes, mRes] = await Promise.all([
-                    fetch(`${PROXY}${encodeURIComponent('https://api.football-data.org/v4/competitions/PL/standings')}`, { headers: h }),
-                    fetch(`${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/teams/${currentTeamId}/matches`)}`, { headers: h })
+                    fetch(`${PROXY}${encodeURIComponent(standingsUrl)}`, { headers: h }),
+                    fetch(`${PROXY}${encodeURIComponent(matchesUrl)}`, { headers: h })
                 ]);
+        
+                if (!sRes.ok || !mRes.ok) throw new Error("API Limit reached or Proxy Error");
+        
                 standings = (await sRes.json()).standings[0].table;
                 allMatches = (await mRes.json()).matches;
                 updateUI();
-            } catch (e) {}
+            } catch (e) { 
+                console.error("Fetch Error:", e);
+                alert("Data failed to load. The API might be rate-limited (10 calls/min).");
+            }
             document.getElementById('loading').style.display = 'none';
         }
 
@@ -186,11 +204,14 @@
                 container.appendChild(block);
             });
         }
-
+        
         async function showDetails(id) {
             document.getElementById('loading').style.display = 'block';
             try {
-                const res = await fetch(`${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/matches/${id}`)}`, { headers: { 'X-Auth-Token': API_KEY } });
+                const matchUrl = `https://api.football-data.org/v4/matches/${id}`;
+                const res = await fetch(`${PROXY}${encodeURIComponent(matchUrl)}`, { 
+                    headers: { 'X-Auth-Token': API_KEY } 
+                });
                 const m = await res.json();
                 document.getElementById('det-comp').innerText = m.competition.name;
                 document.getElementById('det-teams').innerText = `${m.homeTeam.shortName} vs ${m.awayTeam.shortName}`;
