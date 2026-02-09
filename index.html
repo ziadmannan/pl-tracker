@@ -116,37 +116,39 @@
 
         async function init() {
             const saved = JSON.parse(localStorage.getItem('pl_config') || '{"team":57, "view":"small", "dark":false}');
-            currentTeamId = saved.team; 
-            currentView = saved.view; 
+            currentTeamId = saved.team;
+            currentView = saved.view;
             darkMode = saved.dark;
-    
+
             document.body.className = 'view-' + currentView;
             document.body.setAttribute('data-theme', darkMode ? 'dark' : 'light');
             document.getElementById('team-select').value = currentTeamId;
-
             document.getElementById('loading').style.display = 'block';
-    
+
             try {
-                const h = { 'X-Auth-Token': API_KEY };
-        
-                // Construct the URLs
+                // We put the API Key in the URL as a parameter for the proxy to pass along,
+                // or let the proxy handle the raw request.
                 const standingsUrl = `https://api.football-data.org/v4/competitions/PL/standings`;
                 const matchesUrl = `https://api.football-data.org/v4/teams/${currentTeamId}/matches`;
-        
-                // Fetch using the new proxy format
+
+                // NEW METHOD: Use the ?url= format but WITHOUT sending custom headers in the fetch options.
+                // Instead, we use a slightly different AllOrigins endpoint that handles the 'X-Auth-Token' better.
                 const [sRes, mRes] = await Promise.all([
-                    fetch(`${PROXY}${encodeURIComponent(standingsUrl)}`, { headers: h }),
-                    fetch(`${PROXY}${encodeURIComponent(matchesUrl)}`, { headers: h })
+                    fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(standingsUrl)}&headers=${encodeURIComponent(JSON.stringify({'X-Auth-Token': API_KEY}))}`),
+                    fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(matchesUrl)}&headers=${encodeURIComponent(JSON.stringify({'X-Auth-Token': API_KEY}))}`)
                 ]);
-        
-                if (!sRes.ok || !mRes.ok) throw new Error("API Limit reached or Proxy Error");
-        
-                standings = (await sRes.json()).standings[0].table;
-                allMatches = (await mRes.json()).matches;
+
+                const sData = await sRes.json();
+                const mData = await mRes.json();
+
+                // AllOrigins wraps the result in a "contents" string, so we parse it
+                standings = JSON.parse(sData.contents).standings[0].table;
+                allMatches = JSON.parse(mData.contents).matches;
+
                 updateUI();
-            } catch (e) { 
+            } catch (e) {
                 console.error("Fetch Error:", e);
-                alert("Data failed to load. The API might be rate-limited (10 calls/min).");
+                alert("CORS Bypass Failed. Please try again in a minute.");
             }
             document.getElementById('loading').style.display = 'none';
         }
@@ -204,15 +206,15 @@
                 container.appendChild(block);
             });
         }
-        
+
         async function showDetails(id) {
             document.getElementById('loading').style.display = 'block';
             try {
                 const matchUrl = `https://api.football-data.org/v4/matches/${id}`;
-                const res = await fetch(`${PROXY}${encodeURIComponent(matchUrl)}`, { 
-                    headers: { 'X-Auth-Token': API_KEY } 
-                });
-                const m = await res.json();
+                const res = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(matchUrl)}&headers=${encodeURIComponent(JSON.stringify({'X-Auth-Token': API_KEY}))}`);
+                const data = await res.json();
+                const m = JSON.parse(data.contents);
+
                 document.getElementById('det-comp').innerText = m.competition.name;
                 document.getElementById('det-teams').innerText = `${m.homeTeam.shortName} vs ${m.awayTeam.shortName}`;
                 document.getElementById('det-score').innerText = m.status === 'FINISHED' ? `${m.score.fullTime.home} - ${m.score.fullTime.away}` : 'KICKOFF';
