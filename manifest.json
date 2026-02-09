@@ -1,0 +1,21 @@
+{
+  "short_name": "PL Tracker Pro",
+  "name": "Premier League Tracker Pro",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/ios-filled/192/football.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/ios-filled/512/football.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#DB0007",
+  "background_color": "#061041"
+}

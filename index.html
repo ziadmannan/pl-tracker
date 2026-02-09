@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/ios-filled/512/football.png">
+    <link rel="apple-touch-icon" href="https://img.icons8.com/ios-filled/512/football.png">
+    <meta name="theme-color" content="#DB0007">
+    <title>PL Tracker Pro</title>
+    <style>
+        :root {
+            --arsenal-red: #DB0007; --arsenal-blue: #061041;
+            --win-bg: #28a745; --loss-bg: #dc3545; --draw-bg: #fd7e14;
+            --bg: #f0f2f5; --card-bg: #ffffff; --text: #333333;
+            --sub-text: #666666; --border: #dddddd; --nav-bg: var(--arsenal-blue);
+            --next-glow: #fbbf24;
+            --color-pl: #3d195b; --color-cl: #003399; --color-fac: #ff0000; --color-elc: #00a398;
+        }
+        [data-theme="dark"] {
+            --bg: #121212; --card-bg: #1e1e1e; --text: #e0e0e0;
+            --sub-text: #aaaaaa; --border: #333333; --nav-bg: #000000;
+        }
+
+        body { font-family: -apple-system, system-ui, sans-serif; background-color: var(--bg); margin: 0; padding: 10px 4px 220px 4px; color: var(--text); }
+
+        /* DASHBOARD */
+        .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--nav-bg); z-index: 1000; padding: 8px 4px env(safe-area-inset-bottom); }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(5, 1fr); text-align: center; gap: 8px 0px; }
+        .stat-item { color: white; line-height: 1.1; cursor: pointer; padding: 4px 0; }
+        .stat-val { font-size: 0.85rem; font-weight: 800; display: block; }
+        .stat-lab { font-size: 0.35rem; text-transform: uppercase; opacity: 0.7; }
+        
+        /* RESTORED FORM STRIP */
+        .form-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: 3px; margin: 10px 0; padding: 8px 5px 0 5px; border-top: 1px solid rgba(255,255,255,0.1); min-height: 12px; }
+        .dot { width: 6px; height: 6px; border-radius: 50%; background: #444; }
+        .dot.W { background: var(--win-bg); } .dot.D { background: var(--draw-bg); } .dot.L { background: var(--loss-bg); }
+
+        .switch-bar { display: flex; align-items: center; border-top: 1px solid rgba(255,255,255,0.1); }
+        .filter-toggle { flex: 1; background: transparent; border: none; color: white; font-size: 0.6rem; font-weight: 900; padding: 12px 0; opacity: 0.5; cursor: pointer; }
+        .filter-toggle.active { opacity: 1; border-bottom: 2px solid var(--arsenal-red); }
+        .settings-btn { background: none; border: none; color: white; font-size: 1.2rem; padding: 0 15px; cursor: pointer; }
+
+        /* CARDS */
+        .month-label { font-weight: 800; font-size: 0.75rem; color: var(--sub-text); margin: 15px 0 8px 4px; text-transform: uppercase; }
+        .month-block { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+        .game-card { border-radius: 8px; padding: 10px; display: flex; flex-direction: column; background-color: var(--card-bg); border: 1px solid var(--border); cursor: pointer; position: relative; }
+        .venue-tag { position: absolute; top: 6px; right: 8px; font-size: 0.8rem; font-weight: 900; opacity: 0.9; }
+        .date-row { font-weight: 800; text-transform: uppercase; color: var(--sub-text); font-size: 0.7rem; margin-bottom: 4px; display: flex; gap: 4px; }
+        .opponent { font-weight: 800; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .score { font-weight: 900; font-size: 1.15rem; margin-top: auto; display: flex; align-items: center; gap: 6px; }
+
+        .view-small .game-card { width: 85px; height: 55px; }
+        .view-medium .game-card { width: 125px; height: 85px; }
+        .view-large .game-card { width: 195px; height: 105px; }
+        
+        .game-card.win { background-color: var(--win-bg) !important; color: white; border: none; }
+        .game-card.loss { background-color: var(--loss-bg) !important; color: white; border: none; }
+        .game-card.draw { background-color: var(--draw-bg) !important; color: white; border: none; }
+
+        .comp-badge { font-size: 0.55rem; padding: 2px 5px; border-radius: 4px; color: white; font-weight: 900; }
+        @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 5px var(--next-glow); } 50% { box-shadow: 0 0 15px var(--next-glow); } }
+        .next-game-highlight { animation: pulse-glow 2s infinite; border: 2.5px solid var(--next-glow) !important; }
+
+        /* MODALS */
+        .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+        .modal { background: var(--card-bg); color: var(--text); width: 90%; max-width: 360px; border-radius: 12px; padding: 20px; max-height: 80vh; overflow-y: auto; }
+        .table-view { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .table-view th { text-align: left; padding: 8px 4px; border-bottom: 2px solid var(--border); color: var(--sub-text); font-size: 0.65rem; text-transform: uppercase; }
+        .table-view td { padding: 10px 4px; border-bottom: 1px solid var(--border); }
+        .row-highlight { background: rgba(219, 0, 7, 0.1); font-weight: 800; }
+
+        #loading { position: fixed; top: 15px; right: 15px; background: var(--arsenal-red); color: white; padding: 6px 14px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; display: none; z-index: 3000; }
+    </style>
+</head>
+<body class="view-small">
+
+    <div id="loading">SYNCING...</div>
+    <div id="fixture-list"></div>
+
+    <div class="bottom-nav">
+        <div class="dashboard-grid" id="dash">
+            <div class="stat-item" onclick="openTable()"><span class="stat-lab">Pos</span><span class="stat-val" id="pos">-</span></div>
+            <div class="stat-item"><span class="stat-lab">W</span><span class="stat-val" id="won">-</span></div>
+            <div class="stat-item"><span class="stat-lab">D</span><span class="stat-val" id="drawn">-</span></div>
+            <div class="stat-item"><span class="stat-lab">L</span><span class="stat-val" id="lost">-</span></div>
+            <div class="stat-item"><span class="stat-lab">GD</span><span class="stat-val" id="gd">-</span></div>
+            <div class="stat-item"><span class="stat-lab" style="color:#fbbf24">Proj</span><span class="stat-val" id="proj" style="color:#fbbf24">-</span></div>
+            <div class="stat-item" onclick="openTable()"><span class="stat-lab">Pts</span><span class="stat-val" id="pts">-</span></div>
+            <div class="stat-item"><span class="stat-lab">GF</span><span class="stat-val" id="gf">-</span></div>
+            <div class="stat-item"><span class="stat-lab">GA</span><span class="stat-val" id="ga">-</span></div>
+            <div class="stat-item"><span class="stat-lab">PPG</span><span class="stat-val" id="ppg">-</span></div>
+        </div>
+        
+        <div id="form-strip" class="form-dots"></div>
+
+        <div class="switch-bar">
+            <button class="settings-btn" onclick="openSettings()">⚙️</button>
+            <button id="btn-pl" class="filter-toggle active" onclick="setFilter(true)">PREMIER LEAGUE</button>
+            <button id="btn-all" class="filter-toggle" onclick="setFilter(false)">ALL GAMES</button>
+        </div>
+    </div>
+
+    <div id="table-overlay" class="overlay" onclick="closeModals()"><div class="modal" onclick="event.stopPropagation()"><h3 style="margin:0 0 15px 0;">League Table</h3><table class="table-view"><thead><tr><th>#</th><th>Team</th><th>P</th><th>GD</th><th>Pts</th></tr></thead><tbody id="table-body"></tbody></table><button style="width:100%; padding:14px; background:var(--arsenal-red); color:white; border:none; border-radius:6px; font-weight:800; margin-top:20px;" onclick="closeModals()">CLOSE</button></div></div>
+    <div id="settings-overlay" class="overlay" onclick="closeModals()"><div class="modal" onclick="event.stopPropagation()"><h3>Settings</h3><select id="team-select" style="width:100%; padding:14px; margin-bottom:15px;" onchange="changeTeam(this.value)"><option value="57">Arsenal</option><option value="65">Man City</option><option value="64">Liverpool</option><option value="73">Spurs</option><option value="61">Chelsea</option><option value="66">Man Utd</option></select><button id="theme-toggle" onclick="toggleDarkMode()" style="width:100%; padding:12px; margin-bottom:15px;">🌙 DARK MODE</button><div style="display:flex; gap:8px; margin-bottom:20px;"><button onclick="setView('small')" style="flex:1; padding:12px;">S</button><button onclick="setView('medium')" style="flex:1; padding:12px;">M</button><button onclick="setView('large')" style="flex:1; padding:12px;">L</button></div><button style="width:100%; padding:14px; background:var(--arsenal-red); color:white; border:none; border-radius:6px;" onclick="closeModals()">APPLY</button></div></div>
+    <div id="details-overlay" class="overlay" onclick="closeModals()"><div class="modal" onclick="event.stopPropagation()"><div id="det-header" style="text-align:center;"><div id="det-comp"></div><div id="det-teams"></div><div id="det-score"></div><div id="det-venue"></div></div><div id="det-scorers"></div><button style="width:100%; padding:14px; background:var(--arsenal-red); color:white; border:none; border-radius:6px;" onclick="closeModals()">DISMISS</button></div></div>
+
+    <script>
+        const API_KEY = '5f78ec510e644ba2b8972b8c5f3ebd46';
+        const PROXY = "https://corsproxy.io/?";
+        let currentTeamId = 57, allMatches = [], standings = null, showPLOnly = true, currentView = 'small', darkMode = false;
+
+        const COMP_META = { 'PL': { color: 'var(--color-pl)', label: 'PL' }, 'UCL': { color: 'var(--color-cl)', label: 'UCL' }, 'FAC': { color: 'var(--color-fac)', label: 'FAC' }, 'FLC': { color: 'var(--color-elc)', label: 'FLC' } };
+
+        async function init() {
+            const saved = JSON.parse(localStorage.getItem('pl_config') || '{"team":57, "view":"small", "dark":false}');
+            currentTeamId = saved.team; currentView = saved.view; darkMode = saved.dark;
+            document.body.className = 'view-' + currentView;
+            document.body.setAttribute('data-theme', darkMode ? 'dark' : 'light');
+            document.getElementById('team-select').value = currentTeamId;
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const h = { 'X-Auth-Token': API_KEY };
+                const [sRes, mRes] = await Promise.all([
+                    fetch(`${PROXY}${encodeURIComponent('https://api.football-data.org/v4/competitions/PL/standings')}`, { headers: h }),
+                    fetch(`${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/teams/${currentTeamId}/matches`)}`, { headers: h })
+                ]);
+                standings = (await sRes.json()).standings[0].table;
+                allMatches = (await mRes.json()).matches;
+                updateUI();
+            } catch (e) {}
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function updateUI() {
+            if(!standings) return;
+            const t = standings.find(x => x.team.id == currentTeamId) || {};
+            document.getElementById('pos').innerText = t.position || '-';
+            document.getElementById('won').innerText = t.won || 0;
+            document.getElementById('drawn').innerText = t.draw || 0;
+            document.getElementById('lost').innerText = t.lost || 0;
+            document.getElementById('pts').innerText = t.points || 0;
+            document.getElementById('gd').innerText = (t.goalDifference > 0 ? '+' : '') + t.goalDifference;
+            document.getElementById('gf').innerText = t.goalsFor || 0;
+            document.getElementById('ga').innerText = t.goalsAgainst || 0;
+            const ppg = t.points / (t.playedGames || 1);
+            document.getElementById('ppg').innerText = ppg.toFixed(2);
+            document.getElementById('proj').innerText = Math.round(ppg * 38);
+
+            // Restore Form Strip Logic
+            const formFilter = showPLOnly ? allMatches.filter(m => m.competition.code === 'PL') : allMatches;
+            const form = formFilter.filter(m => m.status === 'FINISHED')
+                .sort((a,b) => new Date(a.utcDate) - new Date(b.utcDate))
+                .map(m => {
+                    const isH = m.homeTeam.id == currentTeamId;
+                    const hS = m.score.fullTime.home, aS = m.score.fullTime.away;
+                    return hS === aS ? 'D' : ((isH && hS > aS) || (!isH && aS > hS) ? 'W' : 'L');
+                });
+            document.getElementById('form-strip').innerHTML = form.map(r => `<div class="dot ${r}"></div>`).join('');
+
+            document.getElementById('table-body').innerHTML = standings.map(row => `<tr class="${row.team.id == currentTeamId ? 'row-highlight' : ''}"><td>${row.position}</td><td>${row.team.shortName}</td><td>${row.playedGames}</td><td>${row.goalDifference > 0 ? '+' : ''}${row.goalDifference}</td><td>${row.points}</td></tr>`).join('');
+            renderMatches(showPLOnly ? allMatches.filter(m => m.competition.code === 'PL') : allMatches);
+        }
+
+        function renderMatches(matches) {
+            const container = document.getElementById('fixture-list'); container.innerHTML = '';
+            const grouped = matches.reduce((acc, m) => {
+                const key = new Date(m.utcDate).toLocaleString('default', { month: 'long', year: 'numeric' });
+                if (!acc[key]) acc[key] = []; acc[key].push(m); return acc;
+            }, {});
+
+            Object.entries(grouped).forEach(([month, monthMatches]) => {
+                const h = document.createElement('div'); h.className = 'month-label'; h.innerText = month; container.appendChild(h);
+                const block = document.createElement('div'); block.className = 'month-block';
+                block.innerHTML = monthMatches.map(m => {
+                    const isH = m.homeTeam.id == currentTeamId; const opp = isH ? m.awayTeam : m.homeTeam;
+                    const matchDate = new Date(m.utcDate);
+                    let displayDate = matchDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+                    if (currentView !== 'small') displayDate = `${matchDate.toLocaleDateString('en-GB', { weekday: 'short' })} ${displayDate}`;
+                    if (currentView === 'large') displayDate += ` • ${matchDate.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+                    const resClass = m.status === 'FINISHED' ? (m.score.fullTime.home === m.score.fullTime.away ? 'draw' : ((isH && m.score.fullTime.home > m.score.fullTime.away) || (!isH && m.score.fullTime.away > m.score.fullTime.home) ? 'win' : 'loss')) : '';
+                    const meta = COMP_META[m.competition.code] || { color: '#666', label: m.competition.code };
+                    return `<div class="game-card ${resClass}" onclick="showDetails(${m.id})"><div class="venue-tag">${isH ? 'H' : 'A'}</div><div class="date-row">${displayDate}</div><div class="opponent">${currentView === 'small' ? opp.tla : opp.shortName}</div><div class="score">${m.status === 'FINISHED' ? `${m.score.fullTime.home}-${m.score.fullTime.away}` : 'vs'} ${currentView === 'small' ? (m.competition.code !== 'PL' ? '★' : '') : `<span class="comp-badge" style="background:${meta.color}">${meta.label}</span>`}</div></div>`;
+                }).join('');
+                container.appendChild(block);
+            });
+        }
+
+        async function showDetails(id) {
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const res = await fetch(`${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/matches/${id}`)}`, { headers: { 'X-Auth-Token': API_KEY } });
+                const m = await res.json();
+                document.getElementById('det-comp').innerText = m.competition.name;
+                document.getElementById('det-teams').innerText = `${m.homeTeam.shortName} vs ${m.awayTeam.shortName}`;
+                document.getElementById('det-score').innerText = m.status === 'FINISHED' ? `${m.score.fullTime.home} - ${m.score.fullTime.away}` : 'KICKOFF';
+                document.getElementById('det-venue').innerText = m.venue || 'TBC';
+                document.getElementById('det-scorers').innerHTML = (m.goals || []).map(g => `<div style="display:flex; justify-content:space-between; font-size:0.85rem; margin:4px 0;"><span>⚽ ${g.scorer.name}</span><span>${g.minute}'</span></div>`).join('') || '<div style="text-align:center; opacity:0.5;">No score details</div>';
+                document.getElementById('details-overlay').style.display = 'flex';
+            } catch(e) {}
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function openTable() { document.getElementById('table-overlay').style.display = 'flex'; }
+        function openSettings() { document.getElementById('settings-overlay').style.display = 'flex'; }
+        function closeModals() { document.querySelectorAll('.overlay').forEach(o => o.style.display = 'none'); }
+        function toggleDarkMode() { darkMode = !darkMode; applyTheme(); saveConfig(); }
+        function applyTheme() { document.body.setAttribute('data-theme', darkMode ? 'dark' : 'light'); }
+        function saveConfig() { localStorage.setItem('pl_config', JSON.stringify({team: currentTeamId, view: currentView, dark: darkMode})); }
+        function changeTeam(id) { currentTeamId = id; saveConfig(); init(); }
+        function setView(v) { currentView = v; document.body.className = 'view-'+v; saveConfig(); updateUI(); }
+        function setFilter(pl) { showPLOnly = pl; document.getElementById('btn-pl').classList.toggle('active', pl); document.getElementById('btn-all').classList.toggle('active', !pl); updateUI(); }
+        init();
+    </script>
+    
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker: Registered'))
+        .catch(err => console.log('Service Worker: Error', err));
+    });
+  }
+</script>
+</body>
+</html>
