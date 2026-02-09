@@ -108,10 +108,20 @@
 
 <script>
     const API_KEY = '5f78ec510e644ba2b8972b8c5f3ebd46';
-    const PROXY = "https://corsproxy.io/?";
     let currentTeamId = 57, allMatches = [], standings = null, showPLOnly = true, currentView = 'small', darkMode = false;
 
     const COMP_META = { 'PL': { color: 'var(--color-pl)', label: 'PL' }, 'UCL': { color: 'var(--color-cl)', label: 'UCL' }, 'FAC': { color: 'var(--color-fac)', label: 'FAC' }, 'FLC': { color: 'var(--color-elc)', label: 'FLC' } };
+
+    // HELPER: Fetches through AllOrigins and parses the result
+    async function fetchAPI(targetUrl) {
+        // We embed the header in the URL string itself so AllOrigins handles it on the server-side
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&headers=${encodeURIComponent(JSON.stringify({'X-Auth-Token': API_KEY}))}`;
+        const response = await fetch(proxyUrl);
+        if (!response.ok) throw new Error('Proxy error');
+        const data = await response.json();
+        // AllOrigins returns the stringified response in data.contents
+        return JSON.parse(data.contents);
+    }
 
     async function init() {
         const saved = JSON.parse(localStorage.getItem('pl_config') || '{"team":57, "view":"small", "dark":false}');
@@ -122,31 +132,19 @@
         document.getElementById('loading').style.display = 'block';
 
         try {
-            // We use PROXY prefix + URL
-            // We DON'T send headers during the call to avoid the preflight OPTIONS check if the proxy is sensitive
-            const urlS = `${PROXY}${encodeURIComponent('https://api.football-data.org/v4/competitions/PL/standings')}`;
-            const urlM = `${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/teams/${currentTeamId}/matches`)}`;
-
-            const fetchOptions = {
-                method: 'GET',
-                headers: { 'X-Auth-Token': API_KEY }
-            };
-
-            const [sRes, mRes] = await Promise.all([
-                fetch(urlS, fetchOptions),
-                fetch(urlM, fetchOptions)
+            const [sData, mData] = await Promise.all([
+                fetchAPI('https://api.football-data.org/v4/competitions/PL/standings'),
+                fetchAPI(`https://api.football-data.org/v4/teams/${currentTeamId}/matches`)
             ]);
 
-            if (!sRes.ok || !mRes.ok) throw new Error('CORS or API Rate Limit');
-
-            standings = (await sRes.json()).standings[0].table;
-            allMatches = (await mRes.json()).matches;
+            standings = sData.standings[0].table;
+            allMatches = mData.matches;
 
             document.getElementById('last-updated').innerText = `Last Sync: ${new Date().toLocaleTimeString()}`;
             updateUI();
         } catch (e) {
             console.error(e);
-            alert("Data sync failed. Ensure your browser isn't blocking the proxy.");
+            alert("Data sync failed. Check if API limit (10/min) was reached.");
         }
         document.getElementById('loading').style.display = 'none';
     }
@@ -206,9 +204,7 @@
     async function showDetails(id) {
         document.getElementById('loading').style.display = 'block';
         try {
-            const url = `${PROXY}${encodeURIComponent(`https://api.football-data.org/v4/matches/${id}`)}`;
-            const res = await fetch(url, { headers: { 'X-Auth-Token': API_KEY } });
-            const m = await res.json();
+            const m = await fetchAPI(`https://api.football-data.org/v4/matches/${id}`);
             document.getElementById('det-comp').innerText = m.competition.name;
             document.getElementById('det-teams').innerText = `${m.homeTeam.shortName} vs ${m.awayTeam.shortName}`;
             document.getElementById('det-score').innerText = m.status === 'FINISHED' ? `${m.score.fullTime.home} - ${m.score.fullTime.away}` : 'KICKOFF';
